@@ -3,7 +3,8 @@ classdef lognormal_normal_gamma < handle
         prior = struct('mean_normal',[], 'prec_gamma',[]); %Sampling of Parameters
         posterior = struct('mean_normal',[], 'prec_gamma',[]); %Sampling of Parameters
         parsampl = struct('mean',[], 'prec',[]); %Sampling of Parameters
-        eelog       %Expectation
+        eelog       %Log Expectation
+        expectation      %Expectation
         divkl       %Divergence
         ndim        %Dimension
         nstates     %States Numbers
@@ -12,12 +13,16 @@ classdef lognormal_normal_gamma < handle
         function self=lognormal_normal_gamma(ndim,nstates)
             if exist('ndim','var'), self.ndim=ndim; else self.ndim=[]; end
             if exist('nstates','var'), self.nstates=nstates; else self.nstates=[]; end
-            self.priornoinf();
             self.posterior.mean_normal{1}.mean=[];
             self.posterior.mean_normal{1}.prec=[];
             self.posterior.prec_gamma{1}.shape=[];
             self.posterior.prec_gamma{1}.scale=[];
+            self.prior.mean_normal{1}.mean=[];
+            self.prior.mean_normal{1}.prec=[];
+            self.prior.prec_gamma{1}.shape=[];
+            self.prior.prec_gamma{1}.scale=[];
             self.eelog=[];
+            self.expectation=[];
             self.divkl=[];
         end
         function self=parsamplfun(self,option)
@@ -132,12 +137,11 @@ classdef lognormal_normal_gamma < handle
                 end   
             end
         end
-        function priornoinf(self,X,varargin)
-            opt.prior='default';   
-            for j=1:2:(nargin-2)
-                opt=setfield(opt,varargin{j},varargin{j+1});
-            end
-            n=self.ndim;
+        function priornoinf(self,type,dmax)
+            opt.prior='default';
+            if ~exist('type','var')
+                type='default';
+            end  
             if strcmp(opt.prior,'default')
                 self.prior.mean_normal{1}.mean=4.5;
                 self.prior.mean_normal{1}.prec=0.2;
@@ -146,14 +150,32 @@ classdef lognormal_normal_gamma < handle
                 self.prior.prec_gamma{1}.shape=0.001;
                 self.prior.prec_gamma{1}.scale=1000;
             elseif strcmp(opt.prior,'databased')
-                %It must to check this option.
-                %It will used for other data
+                self.prior.mean_normal{1}.mean=log(dmax/2);
+                self.prior.mean_normal{1}.prec=1/log((dmax/2))^2;
+                self.prior.prec_gamma{1}.shape=0.001;
+                self.prior.prec_gamma{1}.scale=1000;
+            end
+        end
+        function re=priorfull(self)
+            re=1;
+            me=isempty(self.prior.mean_normal{1}.mean);
+            pr=isempty(self.prior.mean_normal{1}.prec);
+            sh=isempty(self.prior.prec_gamma{1}.shape);
+            sc=isempty(self.prior.prec_gamma{1}.scale);
+            if me || pr || sh || sc
+               re=0; 
             end
         end
         function cleanpos(self)
             self.posterior.mean=[];
             self.posterior.prec=[];
             self.eelog=[];
+        end
+        function expectfun(self)
+            for j=1:self.nstates
+                self.expectation.prec{j}=diag(self.posterior.prec_gamma{j}.shape.*self.posterior.prec_gamma{j}.scale);
+                self.expectation.mean{j}=self.posterior.mean_normal{j}.mean;
+            end
         end
         function copy(self,o1)
             self.prior = o1.prior;

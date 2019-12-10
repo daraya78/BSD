@@ -20,7 +20,6 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
         X=(X-repmat(mean(X),ndata,1))./repmat(sqrt(var(X)),ndata,1); 
     end
     
-    
     if ~isstruct(X)
         %INITIAL CONDITION%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%%%%%%%%%%%%%%INIT E-STEP RANDOM %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -28,6 +27,11 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
             decodevar=self.decode(X,opt);
         else 
             seqaux = util.initvb(self,X,opt,repi);
+            %load stateseqhoy
+            %seqaux=stateseq(1:end-2);
+            %save iniok seqaux
+            %load iniok
+            %seqaux=stateseq(1:end-2);
             decodevar=util.decodevarinit(seqaux',class(self),opt);
         end
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -35,14 +39,20 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
         cycle=0;
         
         %%%provisorio%%%%%%%%%%%%%%%
-        %load decodevarbueno
+        %load decodevar
         %decodevar=decodevar2;
+        %decodevar2=decodevar;
+        %save decodevar decodevar2;
+        
+        
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%
         
         
         while dif>opt.tol && cycle<opt.maxcyc
             cycle=cycle+1;     
             %save anterior
+            %area(decodevar.gamma)
+            %drawnow
             %%%%%%%%%%%%%%%%%%%%%%M-STEP%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %Upgrade of Observation Model
             self.emis_model.update(opt.train,X,decodevar.gamma);
@@ -56,6 +66,8 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
             %%%%%%%%%%%%%%%%%%%%%%%E-STEP %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             decodevar=self.decode(X,opt);
             %%%%%%%%%%%%%%%%%%FREE ENERGY ESTIMATION %%%%%%%%%%%%%%%%%%%%%%%%%%
+            %bar(decodevar.gamma)
+            %drawnow
             freearray(cycle)=self.elibrefun(decodevar);
             %%%%%%%%%%%%%%%%%%VERBOSE%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             if strcmp(opt.verbose,'yes')
@@ -66,12 +78,12 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
             end
             %%%%%%%%%%%%%%%%%%%FREE ENERGY CONDITION CHECK %%%%%%%%%%%%%%%%%%%%
             if cycle>1
-                dif=(freearray(cycle).fe-freearray(cycle-1).fe)/abs(freearray(cycle-1).fe)*100;
+                dif=(freearray(cycle).fe-freearray(cycle-1).fe);
                 if dif< 0 %-1e-5
                     %disp('ERROR')ce
                     %save posterior
                     %dif
-                    dif=1;
+                    dif=inf;
                     %keyboard
                 end                
             end
@@ -80,12 +92,18 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
         out.loglik=freearray(end).loglik;
         out.totaldivkl=freearray(end).totaldivkl;
         out.fedetail=freearray;
+        decodevar.xi=[]; %heavy size
         out.decodevar=decodevar;
         out.niter=cycle;
     
     else
         %%%%%%%%%%%%%%%%%%%INIT%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
        
+        if ~self.emis_model.priorfull()
+            [modelarr n iall] = util.addmodel(X,self);
+            X2=util.outmatr([],X,iall,'data',1);
+            self.emis_model.priornoinf(opt.prior,X2);
+        end
         [modelarr n iall] = util.addmodel(X,self);
         [iemis nemis poe]=util.groupindex(X,n,opt.shareemis);
         [itrans ntrans pot]=util.groupindex(X,n,opt.sharetrans);
@@ -169,7 +187,7 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
             if cycle>1
                 dif=(freearray(cycle).fe-freearray(cycle-1).fe)/abs(freearray(cycle-1).fe)*100;
                 if dif< 0 %-1e-5
-                    dif=1;
+                    dif=inf;
                 end
             end
         end

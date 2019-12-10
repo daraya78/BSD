@@ -3,7 +3,8 @@ classdef categ_dirichlet < handle
         prior = struct('categ_dirichlet',[]); %Sampling of Parameters
         posterior = struct('categ_dirichlet',[]); %Sampling of Parameters
         parsampl
-        eelog    %Expectation
+        eelog    %Log Expectation
+        expectation   %Expectation
         divkl       %Divergence
         ndim
         in_mar
@@ -15,11 +16,10 @@ classdef categ_dirichlet < handle
             self.prior.categ_dirichlet.conc=[];
             self.posterior.categ_dirichlet.conc=[];
             if exist('in_mar','var'), self.in_mar=in_mar; else self.in_mar=[]; end
-            if ~isempty(ndim),self.priornoinf();end
             self.eelog=[];
             self.divkl=[];
+            self.expectation=[];
         end
-        
         function self=parsamplfun(self,option)
            if option==1
                 self.parsampl=util.Dirichlet.dirichletRnd(self.posterior.categ_dirichlet.conc);
@@ -31,7 +31,6 @@ classdef categ_dirichlet < handle
                self.parsampl=self.prior.categ_dirichlet.conc/sum(self.prior.categ_dirichlet.conc);
            end 
         end
-        
         function re = sample(self,num)
             re=util.sample_discrete(self.parsampl,num);
         end 
@@ -39,9 +38,9 @@ classdef categ_dirichlet < handle
             if strcmp(opttrain,'EM')      %Conventional
                 %pi_0=self.pi_0; Pendiente
             elseif strcmp(opttrain,'VB')  %Variational Bayes
-                p=psi(self.posterior.categ_dirichlet.conc)-psi(sum(self.posterior.categ_dirichlet.conc,2));
-                plog=exp(p);
-                re=plog(X);
+                plog=psi(self.posterior.categ_dirichlet.conc)-psi(sum(self.posterior.categ_dirichlet.conc,2));
+                p=exp(p);
+                %re=plog(X);
             end
         end
         function [p,plog]=expect(self,opttrain)
@@ -79,6 +78,15 @@ classdef categ_dirichlet < handle
             self.divkl = i1.divkl;
             self.ndim = i1.ndim;
         end  
+        function re=priorfull(self)
+            re=1;
+            if isempty(self.posterior.categ_dirichlet.conc)
+               re=0; 
+            end
+        end
+        function expectfun(self)
+            self.expectation=self.posterior.categ_dirichlet.conc/sum(self.posterior.categ_dirichlet.conc);
+        end
         function re=divklfun(self)
             self.divkl=util.Dirichlet.KLDirich(self.posterior.categ_dirichlet.conc,self.prior.categ_dirichlet.conc);
         end

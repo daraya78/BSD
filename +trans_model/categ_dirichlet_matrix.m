@@ -37,7 +37,7 @@ classdef categ_dirichlet_matrix < handle
                 end
             end
         end
-       function re=prob(self,opttrain,X)
+        function re=prob(self,opttrain,X)
         %No tiene sentido
        end
         function self=update(self,opttrain,X)

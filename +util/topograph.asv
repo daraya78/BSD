@@ -11,7 +11,7 @@ function topograph(outhsmm,data,chanlocs)
     data5=data';
     seq=outhsmm.stateseq;
     nstates=length(unique(seq));
-    upoints=1:length(seq)/2;
+    upoints=length(unique(seq));
     data6=data5(upoints,:);
     Y = zscore(data6(upoints,:));
     seqest = seq(upoints);

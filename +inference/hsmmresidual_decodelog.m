@@ -115,7 +115,7 @@
                 %decodevar.beta=exp(BETATOTAL);
             end
             if opt.deceta==1
-                decodevar.eta=exp(eta);
+                %decodevar.eta=exp(eta);
             end
         end
         

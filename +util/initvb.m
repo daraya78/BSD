@@ -17,7 +17,7 @@ function [stateseq] = initvb(self,X,opt,repi)
         %end
         stateseq=[];
         while(length(unique(stateseq))~=self.nstates)
-            stateseq=util.unirndseq(ndataefec,self.nstates,opt.dmax);
+            stateseq=util.unirndseq(ndataefec,self.nstates,opt.dmax*5);
         end
         %load sqaux;
         %stateseq=sqaux;

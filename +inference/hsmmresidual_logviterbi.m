@@ -40,8 +40,8 @@ function [stateseq delta sa] = hsmmresidual_logviterbi(self,X,opt_varargin)
     
     %FORDWARD ALGORITHM
     for t=1:ndata+dmax-1
-        if mod(t,1000)==0
-            t
+        if mod(t,500)==0
+            fprintf('Progress: %2.0f %% \n',round(t/ndata*100));
         end
         for j=1:nstates
             for d=1:dmax
@@ -55,14 +55,7 @@ function [stateseq delta sa] = hsmmresidual_logviterbi(self,X,opt_varargin)
                             deltaaux=ini(1,j)+A(:,j)+pdur(d,j)+B(j,t,d);
                         elseif (t-d)>=1 & t<=ndata
                             %deltaaux(j,t,d)=delta(i,t-d,h)+pdur(d,j)+A(i,j)+B(j,t,d);
-
-                            try
-                            deltaaux=squeeze(delta(:,t-d,:))+pdur(d,j)+repmat(A(:,j),1,dmax)+B(j,t,d);
-                            catch
-                                keyboard
-                            end
-                            
-                            
+                            deltaaux=squeeze(delta(:,t-d,:))+pdur(d,j)+repmat(A(:,j),1,dmax)+B(j,t,d);    
                         else
                             deltaaux=-inf;
                             posx=0;
@@ -76,7 +69,6 @@ function [stateseq delta sa] = hsmmresidual_logviterbi(self,X,opt_varargin)
                             %    imax=i;
                             %    hmax=h; 
                             %end
-                            
                             [m py]=max(deltaaux);
                             [m posx]=max(m);
                             posy=py(posx);
@@ -85,15 +77,11 @@ function [stateseq delta sa] = hsmmresidual_logviterbi(self,X,opt_varargin)
                                 posy=0;
                                 posx=0;
                             end
-                            
-                            
-                            
                         end                           
                 %    end
                 %end
                 %sa(t,j,d,:)=[t-d imax hmax];
                 sa(t,j,d,:)=[t-d posy posx];
-                
             end
         end
     end
