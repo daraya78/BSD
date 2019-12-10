@@ -1,10 +1,11 @@
-classdef mar < handle
+classdef mar3< handle
    
     properties
         %prior = struct('coef_prec_gamma',[]);
         prior = struct('coef_prec_gamma',[],'prec_wishart',[]);
         posterior = struct('coef_mean_normal',[], 'prec_wishart',[]); 
-        parsampl = struct('coef',[], 'prec',[]); 
+        parsampl = struct('coef',[], 'prec',[]);
+        expectation
         eelog       %Expectation
         divkl       %Divergence
         ndim        %Dimension
@@ -13,11 +14,17 @@ classdef mar < handle
     end
     
     methods
-        function self=mar(ndim,nstates,order)
+        function self=mar3(ndim,nstates,order)
             if exist('ndim','var'), self.ndim=ndim; else self.ndim=[]; end
             if exist('nstates','var'), self.nstates=nstates; else self.nstates=[]; end
             if exist('order','var'), self.order=order; else self.order=[]; end
-            self.priornoinf();
+            self.prior.coef_mean_normal{1}.mean=[];
+            self.prior.coef_mean_mask{1}.mask=[];
+            self.prior.coef_mean_normal{1}.prec=[];
+            self.prior.coef_prec_gamma{1}.scale=[];
+            self.prior.coef_prec_gamma{1}.shape=[];
+            self.prior.prec_wishart{1}.degree=[];
+            self.prior.prec_wishart{1}.scale=[];
             self.posterior.coef_mean_normal{1}.mean=[];
             self.posterior.coef_mean_normal{1}.prec=[];
             self.posterior.coef_prec_gamma{1}.scale=[];
@@ -26,6 +33,7 @@ classdef mar < handle
             self.posterior.prec_wishart{1}.scale=[];
             self.eelog=[];
             self.divkl=[];
+            self.expectation=[];
          end
         function self=parsamplfun(self,option)
             for j=1:self.nstates
@@ -53,6 +61,7 @@ classdef mar < handle
             end
         end   
         function re = sample(self,num,state,dataant)
+            ndim=self.ndim;
             ord=self.order;
             if exist('dataant','var')
                 x = dataant;
@@ -60,6 +69,12 @@ classdef mar < handle
                 x =rand(ord,self.ndim);
             end
             w = self.parsampl.coef{state};
+            %%%%%
+            w2=reshape(w,ndim*ord,ndim);
+            w=reshape(w2',1,ndim*ord*ndim);
+            %%%%%
+            
+            %%%
             noise=mvnrnd(zeros(1,self.ndim),inv(self.parsampl.prec{state}),num);
             A=util.spm.spm_unvec(w,zeros(self.ndim,self.ndim*ord));
             AT      = A';
@@ -98,6 +113,7 @@ classdef mar < handle
                     ndata=size(y,1);
                     d = self.ndim;
                     p = self.order;
+                    p2=sum(self.prior.coef_mean_mask{1}.mask)/d/d;
                     mk = self.posterior.coef_mean_normal{state}.mean;
                     Rk = self.posterior.coef_mean_normal{state}.prec;
                     vk = self.posterior.prec_wishart{state}.degree;
@@ -105,16 +121,29 @@ classdef mar < handle
                     alpha_scalek = self.posterior.coef_prec_gamma{state}.scale;
                     alpha_shapek = self.posterior.coef_prec_gamma{state}.shape;
                     loglambdaTilde = sum(psi(1/2*(vk + 1 -[1:d])))+d*log(2)+util.spm.spm_logdet(Wk);
-                    w_ml=util.spm.spm_unvec(mk,zeros(d*p,d));
-                    y_pred = x*w_ml;
-                    e=y-y_pred;
+                    %w_ml=util.spm.spm_unvec(mk,zeros(d*p,d));
+                    w_ml=util.spm.spm_unvec(mk,zeros(d*p2,d));
+                    
+                    %y_pred = x*w_ml;
+                    aux=zeros(1,d*d*p);
+                    aux(logical(self.prior.coef_mean_mask{1}.mask))=reshape(w_ml,1,d*d*p2);
+                    yy_pred=x*reshape(aux,d*p,d);
+                    e=y-yy_pred;   
+                    
                     invRk=inv(Rk);
                     invalpha=inv(diag(alpha_scalek.*alpha_shapek));
+                    
                     for j=1:ndata
                         ter1=trace(vk*Wk*e(j,:)'*e(j,:));
-                        ter2=trace(vk*Wk*kron(eye(d),x(j,:))*invRk*kron(eye(d),x(j,:))');
+                        mask=self.prior.coef_mean_mask{1}.mask;
+                        aux1=vk*Wk*kron(eye(d),x(j,:));
+                        aux2=kron(eye(d),x(j,:))';
+                        aux1=aux1(:,logical(mask));
+                        aux2=aux2(logical(mask),:);
+                        ter2=trace(aux1*invRk*aux2);
                         logbnj(j,conta)=-d/2*log(2*pi)+0.5*loglambdaTilde-0.5*(ter1+ter2);
                     end
+                   
                     bnj(:,conta)=exp(logbnj(:,conta));
                     conta=conta+1;
                     
@@ -152,69 +181,88 @@ classdef mar < handle
                     y=y.*repmat(gamma,1,d);
                     Nef=sum(gamma);
                     k=p*d*d;
-                    xp=pinv(-x);       %Pseudo inverse Moore-Penrose
+                    p2=sum(self.prior.coef_mean_mask{1}.mask)/d/d;
+                    %xp=pinv(-x);       %Pseudo inverse Moore-Penrose
+                    
+                   maskw=reshape(self.prior.coef_mean_mask{1}.mask,d*p,d)';
+                    for j=1:d
+                        xw=x(:,find(maskw(j,:)));
+                        xp=pinv(-xw);
+                        w_ml(:,j)=-xp*y(:,j);
+                        y_pred(:,j) = xw*w_ml(:,j);
+                    end
                     inv_xtx=pinv(x'*x);
                     xtx=x'*x;
                     xty=x'*y;
                     % Get maximum likelihood solution
-                    w_ml = xp*y;
+                    %w_ml = xp*y;
                     % Swap signs to be consistent with paper (swap back at end !)
-                    w_ml=-1*w_ml;
-                    y_pred = x*w_ml;
-                    e=y-y_pred;
+                    %w_ml=-1*w_ml;
+                    %y_pred = x*w_ml;
+                    e=y-y_pred;   %Verificar que vaya multiplicado por gamma
                     noise_cov=(e'*e)/(Nef+p);
-                    sigma_ml=kron(noise_cov,inv_xtx);
+                    %sigma_ml=kron(noise_cov,inv_xtx);
+                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                    nreg=sum(self.prior.coef_mean_mask{1}.mask);
+                    maskaux=reshape(self.prior.coef_mean_mask{1}.mask,d*p,d)';
+                    maskaux2=[];
+                    for j=1:d
+                        maskaux2=[maskaux2 find(maskaux(j,:))];
+                    end
+                    sigma_ml=kron(noise_cov,ones(nreg/d)).*inv_xtx([maskaux2],[maskaux2]);
+                    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                     if length(self.posterior.coef_mean_normal)==self.nstates && ~isempty(self.posterior.coef_mean_normal{1}.mean)  
-                        w_mean=reshape(self.posterior.coef_mean_normal{state}.mean,[p*d,d]);
+                        w_mean=reshape(self.posterior.coef_mean_normal{state}.mean,[p2*d,d]);
                         w_cov=inv(self.posterior.coef_mean_normal{state}.prec);
                     else
                         w_mean=w_ml;
                         w_cov=sigma_ml;
                     end
                     max_iters=60;
-                    w=zeros(p*d,d);
                     tol=0.0001;
                    %for it=1:max_iters,
                    it=1;
                         % Update weight precisions
-                        mask=self.prior.coef_prec_mask{nprior}.mask;
-                        groups=unique(mask);
-                        shapekcom=zeros(1,k);
-                        scalekcom=zeros(1,k);
-                        for j=1:groups
-                            maskgroup=(mask==j);
-                            ind=find(maskgroup);
-                            shape0=self.prior.coef_prec_gamma{nprior}.shape(ind(1));
-                            scale0=self.prior.coef_prec_gamma{nprior}.scale(ind(1));
-                            Ij=diag(maskgroup);
-                            kj=sum(maskgroup);
-                            E_wj=0.5*w_mean(:)'*Ij*w_mean(:); 
-                            shapek=1 / (E_wj+0.5*trace(Ij*w_cov*Ij)+(1/shape0));
-                            scalek=0.5*kj+scale0;
-                            shapekcom(maskgroup)=shapek;
-                            scalekcom(maskgroup)=scalek;
-                        end
-                        mean_alpha=shapekcom.*scalekcom;
+                        shape0=self.prior.coef_prec_gamma{nprior}.shape;
+                        scale0=self.prior.coef_prec_gamma{nprior}.scale;
+                        kj=length(shape0);
+                        E_wj=0.5*w_mean(:)'*w_mean(:); 
+                        shapek=1 ./ (E_wj+0.5*trace(w_cov)+(1./shape0));
+                        scalek=0.5*d*d*p+scale0;
+                        mean_alpha=shapek.*scalek;
                         % Update noise precision posterior
                         try
-                        yy_pred=x*w_mean;
+                        %yy_pred=x*w_mean;
+                        aux=zeros(1,d*d*p2);
+                        aux(logical(self.prior.coef_mean_mask{1}.mask))=reshape(w_mean,p2,d*d);
+                        yy_pred=x*reshape(aux,d*p,d);
                         catch
                         keyboard
                         end
                         ee=y-yy_pred;
                         E_d_av=ee'*ee;
-                        Omega = util.spm.spm_get_omega(p,d,w_cov,xtx);
+                        %Omega = util.spm.spm_get_omega(p,d,w_cov,xtx);
+                        
+                        %%%%%%%%%%%%%%%%%%%%
+                        c=combvec(find(self.prior.coef_mean_mask{1}.mask),find(self.prior.coef_mean_mask{1}.mask));
+                        kk=sparse(c(1,:)',c(2,:)',sigma_ml(:),d*d*p,d*d*p);
+                        Omega = util.spm.spm_get_omega(p,d,kk,xtx);
+                        %%%%%%%%%%%%%%%%%%%%
+                    
                         E_d_av=E_d_av+Omega;
                         B=E_d_av+util.spm.spm_inv(self.prior.prec_wishart{nprior}.scale);
                         invB=util.spm.spm_inv(B);
                         a=Nef+p+self.prior.prec_wishart{nprior}.degree;
                         mean_lambda=a*invB;
                         % Update weight posterior
-                        data_precision=kron(mean_lambda,xtx);
+                        %data_precision=kron(mean_lambda,xtx);
+                        data_precision=kron(mean_lambda,ones(nreg/d)).*xtx([maskaux2],[maskaux2]);
                         w_cov=util.spm.spm_inv(data_precision+diag(mean_alpha));
                         vec_w_mean=w_cov*data_precision*w_ml(:);
                         w_meanant=w_mean;
-                        w_mean=reshape(vec_w_mean,p*d,d);
+                        %w_mean=reshape(vec_w_mean,p*d,d);
+                        w_mean=reshape(vec_w_mean,p2*d,d);
+                        
                         difw=sum(sum(abs(w_mean-w_meanant)));    
                         if (difw)< 10^-6
                             break
@@ -224,41 +272,37 @@ classdef mar < handle
                     self.posterior.coef_mean_normal{state}.prec=inv(w_cov);
                     self.posterior.prec_wishart{state}.degree=a;
                     self.posterior.prec_wishart{state}.scale=invB;
-                    self.posterior.coef_prec_gamma{state}.shape=shapekcom;
-                    self.posterior.coef_prec_gamma{state}.scale=scalekcom;
+                    self.posterior.coef_prec_gamma{state}.shape=shapek;
+                    self.posterior.coef_prec_gamma{state}.scale=scalek;
                 end
                 for i=1:p,
                     start=(i-1)*d+1;
                     stop=(i-1)*d+1+(d-1);
                     % Transpose and swap signs for compatibility with spectral estimation function
-                    mar.lag(i).a=w_mean(start:stop,:)';
+                    %mar.lag(i).a=w_mean(start:stop,:)';
                 end
             end
-            
         end
         function n=ndatafun(self,X)
             n=size(X,1)-self.order;
         end
-        function priornoinf(self,X,varargin)
-            
+        function priornoinf(self,type,X)
             if ~isempty(self.ndim)
-                opt.prior='default';   
-                for j=1:2:(nargin-2)
-                 opt=setfield(opt,varargin{j},varargin{j+1});
-                end
                 n=self.ndim;
                 d=self.order;
-                if strcmp(opt.prior,'default')
-                    self.prior.coef_prec_gamma{1}.shape=1000*ones(1,n*n*d);
-                    self.prior.coef_prec_gamma{1}.scale=0.001*ones(1,n*n*d);
-                    self.prior.coef_prec_mask{1}.mask=ones(1,n*n*d);
+                if strcmp(type,'default')
+                    if isempty(self.prior.coef_mean_mask{1}.mask)
+                        self.prior.coef_mean_mask{1}.mask=ones(1,n*n*d);
+                    end
+                    d2=sum(self.prior.coef_mean_mask{1}.mask)/n/n;
+                    self.prior.coef_prec_gamma{1}.shape=1000*ones(1,n*n*d2); %se elimina d
+                    self.prior.coef_prec_gamma{1}.scale=0.001*ones(1,n*n*d2); %se elimina d
+                   
                     %self.prior.prec_wishart{1}.degree=n;
                     %self.prior.prec_wishart{1}.scale=0.001*eye(n);
-                    self.prior.prec_wishart{1}.degree=self.ndim;
+                    self.prior.prec_wishart{1}.degree=n;
                     self.prior.prec_wishart{1}.scale=eye(n);
-
-                
-                elseif strcmp(opt.prior,'databased')
+                elseif strcmp(type,'databased')
                     %HOLD
                 end
             end
@@ -285,9 +329,26 @@ classdef mar < handle
                 re=1;
             end
         end
+        function re=priorfull(self)
+            re=1;
+            coefsc=isempty(self.prior.coef_prec_gamma{1}.scale);
+            coefsh=isempty(self.prior.coef_prec_gamma{1}.shape);    
+            de=isempty(self.prior.prec_wishart{1}.degree);
+            sc=isempty(self.prior.prec_wishart{1}.scale);
+            if coefsc || coefsh || de || sc
+               re=0; 
+            end
+        end
+        function expectfun(self)
+            for j=1:self.nstates
+                self.expectation.prec{j}=self.posterior.prec_wishart{j}.scale*self.posterior.prec_wishart{j}.degree;
+                self.expectation.coef{j}=self.posterior.coef_mean_normal{j}.mean;   
+            end
+        end
         function []=divklfun(self)
             D=0;
-            
+            d=self.ndim;
+            p2=sum(self.prior.coef_mean_mask{1}.mask)/d/d;
             for state=1:self.nstates
                 Dgam=0;
                 if size(self.prior.coef_prec_gamma,2)>1
@@ -311,7 +372,9 @@ classdef mar < handle
                 
                 Dnor=util.spm.spm_kl_eig_normal(coefmeank,inv(coefpreck),inv(coefprec0));
                 Dwis=util.Wishart.spm_kl_wishart(degreek,inv(scalek),degree0,inv(scale0));
-                for j=1:self.ndim*self.ndim*self.order
+                
+                %for j=1:self.ndim*self.ndim*self.order
+                for j=1:d*d*p2
                     Dgam=Dgam+util.Gamma.klgamma(coefscalek(j),1/coefshapek(j),coefscale0(j),1/coefshape0(j));
                 end
                 D=D+Dnor+Dgam+Dwis;

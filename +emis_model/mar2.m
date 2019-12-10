@@ -1,10 +1,11 @@
-classdef mar < handle
+classdef mar2 < handle
    
     properties
         %prior = struct('coef_prec_gamma',[]);
         prior = struct('coef_prec_gamma',[],'prec_wishart',[]);
         posterior = struct('coef_mean_normal',[], 'prec_wishart',[]); 
-        parsampl = struct('coef',[], 'prec',[]); 
+        parsampl = struct('coef',[], 'prec',[]);
+        expectation
         eelog       %Expectation
         divkl       %Divergence
         ndim        %Dimension
@@ -13,11 +14,16 @@ classdef mar < handle
     end
     
     methods
-        function self=mar(ndim,nstates,order)
+        function self=mar2(ndim,nstates,order)
             if exist('ndim','var'), self.ndim=ndim; else self.ndim=[]; end
             if exist('nstates','var'), self.nstates=nstates; else self.nstates=[]; end
             if exist('order','var'), self.order=order; else self.order=[]; end
-            self.priornoinf();
+            self.prior.coef_mean_normal{1}.mean=[];
+            self.prior.coef_mean_normal{1}.prec=[];
+            self.prior.coef_prec_gamma{1}.scale=[];
+            self.prior.coef_prec_gamma{1}.shape=[];
+            self.prior.prec_wishart{1}.degree=[];
+            self.prior.prec_wishart{1}.scale=[];
             self.posterior.coef_mean_normal{1}.mean=[];
             self.posterior.coef_mean_normal{1}.prec=[];
             self.posterior.coef_prec_gamma{1}.scale=[];
@@ -26,6 +32,7 @@ classdef mar < handle
             self.posterior.prec_wishart{1}.scale=[];
             self.eelog=[];
             self.divkl=[];
+            self.expectation=[];
          end
         function self=parsamplfun(self,option)
             for j=1:self.nstates
@@ -54,12 +61,17 @@ classdef mar < handle
         end   
         function re = sample(self,num,state,dataant)
             ord=self.order;
-            if exist('dataant','var')
-                x = dataant;
+            ndim=self.ndim;
+            if exist('dataant','var') && ~isempty(dataant)
+                x = dataant(end-ord+1:end,:);
             else
                 x =rand(ord,self.ndim);
             end
             w = self.parsampl.coef{state};
+            %%%%%
+            w2=reshape(w,ndim*ord,ndim);
+            w=reshape(w2',1,ndim*ord*ndim);
+            %%%%%
             noise=mvnrnd(zeros(1,self.ndim),inv(self.parsampl.prec{state}),num);
             A=util.spm.spm_unvec(w,zeros(self.ndim,self.ndim*ord));
             AT      = A';
@@ -239,16 +251,11 @@ classdef mar < handle
         function n=ndatafun(self,X)
             n=size(X,1)-self.order;
         end
-        function priornoinf(self,X,varargin)
-            
+        function priornoinf(self,type,X)
             if ~isempty(self.ndim)
-                opt.prior='default';   
-                for j=1:2:(nargin-2)
-                 opt=setfield(opt,varargin{j},varargin{j+1});
-                end
                 n=self.ndim;
                 d=self.order;
-                if strcmp(opt.prior,'default')
+                if strcmp(type,'default')
                     self.prior.coef_prec_gamma{1}.shape=1000*ones(1,n*n*d);
                     self.prior.coef_prec_gamma{1}.scale=0.001*ones(1,n*n*d);
                     self.prior.coef_prec_mask{1}.mask=ones(1,n*n*d);
@@ -258,7 +265,7 @@ classdef mar < handle
                     self.prior.prec_wishart{1}.scale=eye(n);
 
                 
-                elseif strcmp(opt.prior,'databased')
+                elseif strcmp(type,'databased')
                     %HOLD
                 end
             end
@@ -283,6 +290,22 @@ classdef mar < handle
             re=0;
             if (length(self.posterior.coef_mean_normal)==self.nstates) && (self.nstates~=0)
                 re=1;
+            end
+        end
+        function re=priorfull(self)
+            re=1;
+            coefsc=isempty(self.prior.coef_prec_gamma{1}.scale);
+            coefsh=isempty(self.prior.coef_prec_gamma{1}.shape);    
+            de=isempty(self.prior.prec_wishart{1}.degree);
+            sc=isempty(self.prior.prec_wishart{1}.scale);
+            if coefsc || coefsh || de || sc
+               re=0; 
+            end
+        end
+        function expectfun(self)
+            for j=1:self.nstates
+                self.expectation.prec{j}=self.posterior.prec_wishart{j}.scale*self.posterior.prec_wishart{j}.degree;
+                self.expectation.coef{j}=self.posterior.coef_mean_normal{j}.mean;   
             end
         end
         function []=divklfun(self)
@@ -315,8 +338,8 @@ classdef mar < handle
                     Dgam=Dgam+util.Gamma.klgamma(coefscalek(j),1/coefshapek(j),coefscale0(j),1/coefshape0(j));
                 end
                 D=D+Dnor+Dgam+Dwis;
-            end
-            self.divkl=D;
+                end
+                self.divkl=D;
         end
         function graf(self,optiongraf,data,elib,cycle,stateseq,alphak)
             if optiongraf==1

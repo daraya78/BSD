@@ -4,7 +4,8 @@ classdef normal_normal_gamma < handle
         prior = struct('mean_normal',[], 'prec_gamma',[]); %Sampling of Parameters
         posterior = struct('mean_normal',[], 'prec_gamma',[]); %Sampling of Parameters
         parsampl = struct('mean',[], 'prec',[]); %Sampling of Parameters
-        eelog       %Expectation
+        eelog       %log Expectation
+        expectation      %Expectation
         divkl       %Divergence
         ndim        %Dimension
         nstates     %States Numbers
@@ -15,15 +16,18 @@ classdef normal_normal_gamma < handle
         function self=normal_normal_gamma(ndim,nstates)
             if exist('ndim','var'), self.ndim=ndim; else self.ndim=[]; end
             if exist('nstates','var'), self.nstates=nstates; else self.nstates=[]; end
-            self.priornoinf();
+            self.prior.mean_normal{1}.mean=[];
+            self.prior.mean_normal{1}.prec=[];
+            self.prior.prec_gamma{1}.shape=[];
+            self.prior.prec_gamma{1}.scale=[];
             self.posterior.mean_normal{1}.mean=[];
             self.posterior.mean_normal{1}.prec=[];
             self.posterior.prec_gamma{1}.shape=[];
             self.posterior.prec_gamma{1}.scale=[];
             self.eelog=[];
+            self.expectation=[];
             self.divkl=[];
         end
-        
         function self=parsamplfun(self,option)
             for j=1:self.nstates
                 if option==1
@@ -53,11 +57,9 @@ classdef normal_normal_gamma < handle
                 end
             end
         end
-        
         function re = sample(self,num,state)
             re = mvnrnd(self.parsampl.mean{state},inv(self.parsampl.prec{state}),num);
         end
-        
         function [p,plog]=prob(self,opttrain,X,state)
             if ~exist('state','var')
                 k1=1;
@@ -86,7 +88,6 @@ classdef normal_normal_gamma < handle
                 end
             end
         end
-        
         function update (self,opttrain,X,gammain,statereq)
             if ~exist('statereq','var')
                 k1=1;
@@ -165,32 +166,26 @@ classdef normal_normal_gamma < handle
                     end               
                 end
             end
-        end
-            
+        end 
         function n=ndatafun(self,X)
             n=size(X,1);
         end
-        function priornoinf(self,X,varargin)
-            opt.prior='default';   
-            for j=1:2:(nargin-2)
-                opt=setfield(opt,varargin{j},varargin{j+1});
-            end
+        function priornoinf(self,type,X)
             n=self.ndim;
-            if strcmp(opt.prior,'default')
+            if ~exist('type','var')
+                type='default';
+            end
+            if strcmp(type,'default')
                 self.prior.mean_normal{1}.mean=zeros(1,n);
                 self.prior.mean_normal{1}.prec=diag(0.1*ones(1,n));
                 self.prior.prec_gamma{1}.shape=0.001*ones(1,n);
                 self.prior.prec_gamma{1}.scale=1000*ones(1,n);
                 
-            elseif strcmp(opt.prior,'databased')
-                %It must to check this option.
-                %It will used for other data
-                mean2=mean(X);
-                std2=5*std(X);
-                self.prior.mean_normal{1}.mean=mean2;
-                self.prior.mean_normal{j}.prec=diag(1/((std2)^2));
-                self.prior.prec_gamma{1}.shape=1/(std2);
-                self.prior.prec_gamma{1}.scale=10/(std2);
+            elseif strcmp(type,'databased')
+                self.prior.mean_normal{1}.mean=mean(X);
+                self.prior.mean_normal{1}.prec=diag(1./(((max(X)-min(X))/2).^2));
+                self.prior.prec_gamma{1}.shape=0.001*ones(1,n);
+                self.prior.prec_gamma{1}.scale=1000*ones(1,n); 
             end
         end
         function cleanpos(self)
@@ -211,6 +206,22 @@ classdef normal_normal_gamma < handle
             re=0;
             if (length(self.posterior.mean_normal)==self.nstates) && (self.nstates~=0)
                 re=1;
+            end
+        end
+        function re=priorfull(self)
+            re=1;
+            me=isempty(self.prior.mean_normal{1}.mean);
+            pr=isempty(self.prior.mean_normal{1}.prec);
+            sh=isempty(self.prior.prec_gamma{1}.shape);
+            sc=isempty(self.prior.prec_gamma{1}.scale);
+            if me || pr || sh || sc
+               re=0; 
+            end
+        end
+        function expectfun(self)
+            for j=1:self.nstates
+                self.expectation.prec{j}=diag(self.posterior.prec_gamma{j}.shape.*self.posterior.prec_gamma{j}.scale);
+                self.expectation.mean{j}=self.posterior.mean_normal{j}.mean;
             end
         end
         function []=divklfun(self)
