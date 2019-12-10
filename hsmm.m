@@ -18,39 +18,28 @@ classdef hsmm < handle
             %
             if exist('ndim','var'), self.ndim=ndim; else self.ndim=[]; end
             if exist('nstates','var'), self.nstates=nstates; else self.nstates=[]; end
-            if exist('emis_model2','var')
-                self.emis_model=emis_model2;
-            else
-                %e=emis_model.normal_normal_wishart(self.ndim,self.nstates);
-                e=emis_model.mar(self.ndim,self.nstates,2);
-                
+            if exist('emis_model2','var'),self.emis_model=emis_model2;else emis_model2=[];end
+            if exist('dur_model2','var'),self.dur_model=dur_model2;else dur_model2=[];end
+            if exist('trans_model2','var'),self.trans_model=trans_model2;else trans_model2=[];end
+            if exist('in_model2','var'),self.in_model=in_model2;else in_model2=[];end
+            if isempty(emis_model2)
+                e=emis_model.normal_normal_wishart(self.ndim,self.nstates);
+                %e=emis_model.mar(self.ndim,self.nstates,2);
                 self.emis_model=e;
-                if ~isempty(self.ndim),self.emis_model.priornoinf();end
-                
             end
-            if exist('in_model2','var') 
-                self.in_model=in_model2;
-            else
+            if isempty(in_model2) 
                 i=in_model.categ_dirichlet(self.nstates);
                 self.in_model=i;
-                if ~isempty(self.nstates),self.in_model.priornoinf();end
             end
-            if exist('trans_model2','var')
-                self.trans_model=trans_model2;
-            else
+            if isempty(trans_model2)
                 t=trans_model.categ_dirichlet_matrixdiag0(self.nstates);
                 self.trans_model=t;
-                if ~isempty(self.nstates),self.trans_model.priornoinf();end
+                %if ~isempty(self.nstates),self.trans_model.priornoinf();end
             end
-            if exist('dur_model2','var')
-                self.dur_model=dur_model2;
-            else
-                %d=vari_pdf.normal_normal_gamma_disc(1,self.nstates);
-                %d=dur_model.normal_normal_gamma(1,self.nstates);
-                d=dur_model.lognormal_normal_gamma(1,self.nstates);
-                
+            if isempty(dur_model2)
+                d=dur_model.normal_normal_gamma(1,self.nstates);
+                %d=dur_model.lognormal_normal_gamma(1,self.nstates);
                 self.dur_model=d;
-                self.dur_model.priornoinf();
             end       
         end
         function [data, stateseq, ndata,stateseq_norep, durations] = gen(self,ndata,varargin)
@@ -74,7 +63,7 @@ classdef hsmm < handle
             end
             data = [];
             for j = 1:length(durations)
-                data=[data; self.emis_model.sample(durations(j),stateseq_norep(j))];
+                data=[data; self.emis_model.sample(durations(j),stateseq_norep(j),data)];
             end
             if strcmp(opt.fixedndata,'no')
                 ndata=size(data,1);
@@ -108,6 +97,20 @@ classdef hsmm < handle
            self.in_model.cleanpos();
            self.trans_model.cleanpos();
         end
+        function priornoinf(self,data,dmax)
+           if exist('data','var')
+               self.emis_model.priornoinf('databased',data);
+           else
+               self.emis_model.priornoinf('default');
+           end
+           if exist('dmax','var')
+               self.dur_model.priornoinf('databased',dmax);
+           else
+               self.dur_model.priornoinf('default');
+           end
+           self.trans_model.priornoinf();
+           self.in_model.priornoinf();
+        end 
         function copy(self,hsmm1)
             self.ndim=hsmm1.ndim;
             self.nstates=hsmm1.nstates;
@@ -141,6 +144,12 @@ classdef hsmm < handle
             out.dur_model.nstates=newnstates;
             out.trans_model.ndim=newnstates;
             out.in_model.ndim=newnstates;
+        end
+        function expectfun(self)
+           self.emis_model.expectfun();
+           self.dur_model.expectfun();
+           self.in_model.expectfun();
+           self.trans_model.expectfun();
         end
         function output=elibrefun(self,decodevar)
 

@@ -1,5 +1,4 @@
 classdef hmm < handle
-    
     properties
         ndim
         nstates
@@ -7,32 +6,26 @@ classdef hmm < handle
         trans_model
         emis_model
     end
-
     methods
         function self = hmm(ndim,nstates,emis_model2,in_model2,trans_model2)
             if exist('ndim','var'), self.ndim=ndim; else self.ndim=[]; end
             if exist('nstates','var'), self.nstates=nstates; else self.nstates=[]; end
-            if exist('emis_model2','var')
-                self.emis_model=emis_model2;
-            else
-                e=emis_model.mar(self.ndim,self.nstates,2);
-                %e=emis_model.normal_normal_gamma(self.ndim,self.nstates);
+            if exist('emis_model2','var'),self.emis_model=emis_model2;else emis_model2=[];end
+            if exist('trans_model2','var'),self.trans_model=trans_model2;else trans_model2=[];end
+            if exist('in_model2','var'),self.in_model=in_model2;else in_model2=[];end
+            if isempty(emis_model2)
+                e=emis_model.normal_normal_wishart(self.ndim,self.nstates);
+                %e=emis_model.mar(self.ndim,self.nstates,2);
                 self.emis_model=e;
-                self.emis_model.priornoinf();
             end
-            if exist('in_model2','var')
-                self.in_model=in_model2;
-            else
+            if isempty(in_model2) 
                 i=in_model.categ_dirichlet(self.nstates);
                 self.in_model=i;
-                if ~isempty(self.nstates),self.in_model.priornoinf();end
             end
-            if exist('trans_model2','var')
-                self.trans_model=trans_model2;
-            else
-                t=trans_model.categ_dirichlet_matrix(self.nstates);
+            if isempty(trans_model2)
+                t=trans_model.categ_dirichlet_matrixdiag0(self.nstates);
                 self.trans_model=t;
-                if ~isempty(self.nstates),self.trans_model.priornoinf();end
+                %if ~isempty(self.nstates),self.trans_model.priornoinf();end
             end
         end
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -63,8 +56,8 @@ classdef hmm < handle
             self.emis_model.parsamplfun(option);
             self.trans_model.parsamplfun(option);
         end
-        function [out, sim_array, hmm2, modelstruct]=train(self,data,varargin)
-            [out, sim_array, hmm2, modelstruct]=inference.train(self,data,varargin);
+        function [out, sim_array, hsmm2, modelstruct, modelstructarray]=train(self,data,varargin)
+            [out, sim_array, hsmm2, modelstruct, modelstructarray]=inference.train(self,data,varargin);
         end
         function [out modelstruct]=trainn(self,data,repi,varargin)
             [out modelstruct]=inference.trainn(self,data,repi,varargin);
@@ -74,6 +67,11 @@ classdef hmm < handle
            self.in_model.cleanpos();
            self.trans_model.cleanpos();
         end
+        function priornoinf(self,data)
+           self.emis_model.priornoinf('databased',data);
+           self.trans_model.priornoinf();
+           self.in_model.priornoinf();
+        end 
         function copy(self,hmm1)
             self.ndim=hmm1.ndim;
             self.nstates=hmm1.nstates;
@@ -105,6 +103,12 @@ classdef hmm < handle
             hmm2.trans_model.ndim=newnstates;
             hmm2.in_model.ndim=newnstates;
         end 
+        function expectfun(self)
+           self.emis_model.expectfun();
+           self.dur_model.expectfun();
+           self.in_model.expectfun();
+           self.trans_model.expectfun();
+        end
         function output=elibrefun(self,decodevar)
             self.emis_model.divklfun();
             output.divklobs=self.emis_model.divkl;
@@ -116,8 +120,6 @@ classdef hmm < handle
             output.totaldivkl=-output.divkltrans-output.divklobs-output.divklin;
             output.fe=output.loglik+output.totaldivkl;
         end
-        
-        
     end
 end
 

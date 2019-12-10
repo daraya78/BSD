@@ -18,19 +18,17 @@ classdef multimodel < handle
             if exist('iin','var'), self.iin=iin; else self.iin=[]; end
             if exist('idur','var'), self.idur=idur; else self.idur=[]; end
         end
-        %function [data, stateseq, ndata,stateseq_norep, durations] = gen(self,ndata,varargin)
-        
-        %end
-        
-        %function init(self,option)
-        %end
-        
+       
         function [decstruct] = decode(self,X,opt)  
              for j=1:size(self.iall,1)
                 model=self.matrixmodel(self.iall(j,1),self.iall(j,2),self.iall(j,3));
                 Xaux=X.cond(self.iall(j,1)).subj(self.iall(j,2)).block(self.iall(j,3)).data;
                 %auxdec=inference.hsmmresidual_decodelog(self,X,varargin)
-                auxdec=model.decode(Xaux,opt);
+                if ~exist('opt','var')
+                    auxdec=model.decode(Xaux);
+                else
+                    auxdec=model.decode(Xaux,opt);
+                end
                 decstruct.cond(self.iall(j,1)).subj(self.iall(j,2)).block(self.iall(j,3)).decodevar=auxdec;
              end
         end
@@ -41,17 +39,19 @@ classdef multimodel < handle
                 [sq delta] = model.viterbi(Xaux);
                 decstruct.cond(self.iall(j,1)).subj(self.iall(j,2)).block(self.iall(j,3)).stateseq=sq;
              end
-        end 
-        
+        end        
         function init(self,option)
              for j=1:size(self.iall,1)
                 model=self.matrixmodel(self.iall(j,1),self.iall(j,2),self.iall(j,3));
                 model.init(option);
              end
         end   
-
-            
-
+        function expectfun(self)
+            for j=1:size(self.iall,1)
+                model=self.matrixmodel(self.iall(j,1),self.iall(j,2),self.iall(j,3));
+                model.expectfun();
+            end
+        end
         function [out, sim_array, hsmm2, modelstruct]=train(self,data,varargin)
             [out, sim_array, hsmm2, modelstruct]=inference.train(self,data,varargin);
         end
@@ -85,12 +85,14 @@ classdef multimodel < handle
                 divkltrans=divkltrans+self.matrixmodel(kc,ks,kb).trans_model.divkl;
             end
             divkldur=0;
-            for j=1:size(self.idur,2)
-                kc=self.idur{j}(1,1);
-                ks=self.idur{j}(1,2);
-                kb=self.idur{j}(1,3);
-                self.matrixmodel(kc,ks,kb).dur_model.divklfun();
-                divkldur=divkldur+self.matrixmodel(kc,ks,kb).dur_model.divkl;
+            if strcmp(class(self.matrixmodel),'hsmm')
+                for j=1:size(self.idur,2)
+                    kc=self.idur{j}(1,1);
+                    ks=self.idur{j}(1,2);
+                    kb=self.idur{j}(1,3);
+                    self.matrixmodel(kc,ks,kb).dur_model.divklfun();
+                    divkldur=divkldur+self.matrixmodel(kc,ks,kb).dur_model.divkl;
+                end
             end
             divklin=0;
             for j=1:size(self.iin,2)
