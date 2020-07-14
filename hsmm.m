@@ -63,7 +63,12 @@ classdef hsmm < handle
             end
             data = [];
             for j = 1:length(durations)
-                data=[data; self.emis_model.sample(durations(j),stateseq_norep(j),data)];
+                if j==1
+                    data=[data; self.emis_model.sample(durations(j),stateseq_norep(j))];
+                else
+                    p=self.emis_model.order;
+                    data=[data; self.emis_model.sample(durations(j),stateseq_norep(j),data(end-p+1:end,:))];
+                end
             end
             if strcmp(opt.fixedndata,'no')
                 ndata=size(data,1);
@@ -85,8 +90,8 @@ classdef hsmm < handle
         function [sq delta] = viterbi(self,data,varargin)
             [sq delta] = inference.hsmmresidual_logviterbi(self,data,varargin);
         end
-        function [out, sim_array, hsmm2, modelstruct]=train(self,data,varargin)
-            [out, sim_array, hsmm2, modelstruct]=inference.train(self,data,varargin);
+        function [out, sim_array, hsmm2, modelstruct, modelstructarray]=train(self,data,varargin)
+            [out, sim_array, hsmm2, modelstruct, modelstructarray]=inference.train(self,data,varargin);
         end
         function [out modelstruct]=trainn(self,data,repi,varargin)
             [out modelstruct]=inference.trainn(self,data,repi,varargin);
@@ -98,16 +103,15 @@ classdef hsmm < handle
            self.trans_model.cleanpos();
         end
         function priornoinf(self,data,dmax)
-           if exist('data','var')
+           if nargin<2
+                self.emis_model.priornoinf('default');
+                self.dur_model.priornoinf('default');
+           else
                self.emis_model.priornoinf('databased',data);
-           else
-               self.emis_model.priornoinf('default');
-           end
-           if exist('dmax','var')
                self.dur_model.priornoinf('databased',dmax);
-           else
-               self.dur_model.priornoinf('default');
            end
+           
+           
            self.trans_model.priornoinf();
            self.in_model.priornoinf();
         end 
@@ -145,12 +149,15 @@ classdef hsmm < handle
             out.trans_model.ndim=newnstates;
             out.in_model.ndim=newnstates;
         end
+        
         function expectfun(self)
            self.emis_model.expectfun();
            self.dur_model.expectfun();
            self.in_model.expectfun();
            self.trans_model.expectfun();
         end
+        
+        
         function output=elibrefun(self,decodevar)
 
             self.emis_model.divklfun();
@@ -165,6 +172,7 @@ classdef hsmm < handle
             output.totaldivkl=-output.divkltrans-output.divklobs-output.divkldur- output.divklin;
             output.fe=output.loglik+output.totaldivkl;
         end 
+        
     end
 end
 
