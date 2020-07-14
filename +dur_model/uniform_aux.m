@@ -11,7 +11,8 @@ classdef uniform_aux < handle
         end
         function self=parsamplfun(self,option)
      
-        end 
+        end
+        
         function re = sample(self,num,state)
             ma=self.parsampl.mean{state}+self.parsampl.var{state};
             mi=self.parsampl.mean{state}-self.parsampl.var{state};

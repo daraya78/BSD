@@ -27,11 +27,8 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
             decodevar=self.decode(X,opt);
         else 
             seqaux = util.initvb(self,X,opt,repi);
-            %load stateseqhoy
-            %seqaux=stateseq(1:end-2);
-            %save iniok seqaux
-            %load iniok
-            %seqaux=stateseq(1:end-2);
+            %load stateseq
+            %seqaux=stateseq;
             decodevar=util.decodevarinit(seqaux',class(self),opt);
         end
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -39,13 +36,15 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
         cycle=0;
         
         %%%provisorio%%%%%%%%%%%%%%%
-        %load decodevar
+        %load decodevarbueno
         %decodevar=decodevar2;
-        %decodevar2=decodevar;
-        %save decodevar decodevar2;
-        
-        
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %save decodevarbueno decodevar
+        if opt.video==1
+                video = VideoWriter([opt.file '.avi']);
+                video.FrameRate=2;
+                open(video);
+        end
         
         
         while dif>opt.tol && cycle<opt.maxcyc
@@ -56,6 +55,10 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
             %%%%%%%%%%%%%%%%%%%%%%M-STEP%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %Upgrade of Observation Model
             self.emis_model.update(opt.train,X,decodevar.gamma);
+            if self.emis_model.trouble()
+                freearray(cycle).fe=-inf;
+                break;
+            end
             if strcmp(class(self),'hsmm')
                 %durcount=sum(decodevar.eta,3);
                 %self.dur_model.update(2,(1:opt.dmax)',durcount);
@@ -65,9 +68,21 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
             self.in_model.update(opt.train,decodevar.gamma(1,:)); %Upgrade of initial Model
             %%%%%%%%%%%%%%%%%%%%%%%E-STEP %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             decodevar=self.decode(X,opt);
-            %%%%%%%%%%%%%%%%%%FREE ENERGY ESTIMATION %%%%%%%%%%%%%%%%%%%%%%%%%%
-            %bar(decodevar.gamma)
+            
+            %save(['decodevar' num2str(cycle) '.mat'],'decodevar')
+            %load(['decodevar' num2str(cycle) '.mat'])
+            
+            %subplot(2,1,1)
+            %a1=area(decodevar.gamma(1:800,:));
+            %title(['Iteración: ' num2str(cycle)])
+            %a1(1).FaceColor='r';a1(2).FaceColor='g';a1(3).FaceColor='b';
+            %subplot(2,1,2)
+            %a2=area(exp(decodevar.Emi(:,1:800))'./sum(exp(decodevar.Emi(:,1:800)'),2));
+            %a2(1).FaceColor='r';a2(2).FaceColor='g';a2(3).FaceColor='b';
             %drawnow
+            
+            
+            %%%%%%%%%%%%%%%%%%FREE ENERGY ESTIMATION %%%%%%%%%%%%%%%%%%%%%%%%%%
             freearray(cycle)=self.elibrefun(decodevar);
             %%%%%%%%%%%%%%%%%%VERBOSE%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             if strcmp(opt.verbose,'yes')
@@ -87,7 +102,16 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
                     %keyboard
                 end                
             end
+            if opt.video==1
+                video=self.emis_model.graf(opt,decodevar,video);
+            else
+                if opt.graf>0
+                    self.emis_model.graf(opt,decodevar);
+                end
+            end
         end
+        
+
         out.fe=freearray(end).fe;
         out.loglik=freearray(end).loglik;
         out.totaldivkl=freearray(end).totaldivkl;
@@ -95,7 +119,11 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
         decodevar.xi=[]; %heavy size
         out.decodevar=decodevar;
         out.niter=cycle;
-    
+        if opt.video==1
+            close(video)
+        end
+        
+        
     else
         %%%%%%%%%%%%%%%%%%%INIT%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
        
@@ -185,7 +213,7 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
             end
             %%%%%%%%%%%%%%%%%%%FREE ENERGY CONDITION CHECK %%%%%%%%%%%%%%%%%%%%
             if cycle>1
-                dif=(freearray(cycle).fe-freearray(cycle-1).fe)/abs(freearray(cycle-1).fe)*100;
+                dif=(freearray(cycle).fe-freearray(cycle-1).fe);
                 if dif< 0 %-1e-5
                     dif=inf;
                 end
@@ -197,18 +225,6 @@ function [out modelarray] = trainn(self,X,repi,opt_varargin)
         out.fedetail=freearray;
         out.decodevar=decstruct;
         out.niter=cycle;
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
         
     end
     

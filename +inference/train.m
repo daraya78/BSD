@@ -42,7 +42,7 @@ function [out,sim_array, model, modelstruct modelstructarray] = train(self,data,
             self.dur_model.priornoinf(opt.prior,opt.dmax);
         end
     end
-    if ~isempty(self.nstates) && (self.nstates~=0)
+    if ~isempty(self.nstates) && (self.nstates~=0)  %Nstates is defined
         if ~self.trans_model.priorfull()
             self.trans_model.priornoinf();
         end
@@ -88,7 +88,7 @@ function [out,sim_array, model, modelstruct modelstructarray] = train(self,data,
                     end
                     if ~model(j,kstate).in_model.priorfull()
                         model(j,kstate).in_model.priornoinf();
-                    end 
+                    end
                     [sim_array(j,kstate) modelstructarray(j,kstate)]=model(j,kstate).trainn(data,j,opt);
                 end
             end

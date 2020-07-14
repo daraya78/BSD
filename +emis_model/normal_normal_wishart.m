@@ -27,6 +27,7 @@ classdef normal_normal_wishart < handle
             self.eelog=[];
             self.divkl=[];
             self.expectation=[];
+ 
          end
         function self=parsamplfun(self,option)
             for j=1:self.nstates
@@ -57,7 +58,7 @@ classdef normal_normal_wishart < handle
                 end
             end
         end
-        function re = sample(self,num,state)
+        function re = sample(self,num,state,dataant)
             re = mvnrnd(self.parsampl.mean{state},inv(self.parsampl.prec{state}),num);
         end
         function [p,plog]=prob(self,opttrain,X,state)
@@ -136,8 +137,10 @@ classdef normal_normal_wishart < handle
                         Rk = Nk*inv(Sk);
                         self.posterior.mean_normal{state}.prec=Rk;
                     end
-                
-                    if Nk < 0.001 % extinguished
+                    %umb=Nk/size(gamma,1)*100;
+                    %if umb < 0.1 % extinguished                   
+                    %if Nk < 0.01 % extinguished 
+                    if Nk < 15 % extinguished 
                         if size(self.prior.mean_normal,2)>1
                             self.posterior.mean_normal{state}.prec = self.prior.mean_normal{state}.prec; 
                             self.posterior.mean_normal{state}.mean = self.prior.mean_normal{state}.mean;
@@ -183,7 +186,7 @@ classdef normal_normal_wishart < handle
                 self.prior.prec_wishart{1}.degree=n;
                 self.prior.prec_wishart{1}.scale=0.001*eye(n);
             elseif strcmp(type,'databased')
-                self.prior.mean_normal{1}.mean=mean(X);
+                self.prior.mean_normal{1}.mean=zeros(1,n);
                 self.prior.mean_normal{1}.prec=diag(1./(((max(X)-min(X))/2).^2));
                 self.prior.prec_wishart{1}.scale=diag(1./(((max(X)-min(X))/4).^2))/n;
                 self.prior.prec_wishart{1}.degree=self.ndim;   
@@ -224,6 +227,9 @@ classdef normal_normal_wishart < handle
                 self.expectation.prec{j}=self.posterior.prec_wishart{j}.scale*self.posterior.prec_wishart{j}.degree;
                 self.expectation.mean{j}=self.posterior.mean_normal{j}.mean;   
             end
+        end
+        function [flag]=trouble(self)
+            flag=0;
         end
         function []=divklfun(self)
             D=0;

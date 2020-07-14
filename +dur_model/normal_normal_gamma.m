@@ -87,7 +87,9 @@ classdef normal_normal_gamma < handle
                     E = trace( diag(self.posterior.prec_gamma{state}.shape.*self.posterior.prec_gamma{state}.scale)*(self.posterior.mean_normal{state}.prec)^-1)+...
                     sum((XC*diag(self.posterior.prec_gamma{state}.shape.*self.posterior.prec_gamma{state}.scale)).*XC,2);
                     plog(:,conta)=repmat(0.5*aux, size(X,1),1)- self.ndim*log(2*pi)- 0.5*E;
-                    plog(:,conta)=plog(:,conta)-util.logsumexp(plog(:,conta));
+                    if sum(abs(X-floor(X)))==0  %Discrete array need scaling
+                        plog(:,conta)=plog(:,conta)-util.logsumexp(plog(:,conta));
+                    end
                     p(:,conta)=exp(plog(:,conta));
                     conta=conta+1;
                 end
@@ -239,7 +241,7 @@ classdef normal_normal_gamma < handle
                 for j=1:self.ndim         
                     D=D+util.Gamma.klgamma(kk(j),1/tetak(j),k0(j),1/teta0(j));   
                 end                               
-                D=D+util.Normal.spm_kl_normal(mk,inv(Rk),m0,inv(R0));  %Se debe revisar
+                D=D+util.Normal.spm_kl_normal(mk,inv(Rk),m0,inv(R0)); 
             end
             self.divkl=D;
         end

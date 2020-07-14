@@ -23,26 +23,23 @@ else
     
     nstates=0;
     n=0;
+    uni=[];
     for kcond=1:size(seq.nstates,1)
         for ksubj=1:size(seq.nstates.cond(kcond).subj,2)
             for kblock=1:size(seq.nstates.cond(kcond).subj(ksubj).block,2)
-                nstates2=seq.nstates.cond(kcond).subj(ksubj).block(kblock).nstates;
-                n=n+1;
-                if nstates2>nstates
-                    nstates=nstates2;
-                end
+                uni=[uni unique(seq.stateseq.cond(kcond).subj(ksubj).block(kblock).stateseq)];
             end
         end
     end
-    
+    n=max(unique(uni));
     f=figure
     conta=1;
     for kcond=1:size(seq.stateseq,1)
         for ksubj=1:size(seq.stateseq.cond(kcond).subj,2)
             for kblock=1:size(seq.stateseq.cond(kcond).subj(ksubj).block,2)
-                subplot(2,ceil(n/2),conta);
+                subplot(2,ceil(5/2),conta);
                 seq2=seq.stateseq.cond(kcond).subj(ksubj).block.stateseq;
-                [a1 b11]=hist(seq2,1:nstates);
+                [a1 b11]=hist(seq2,1:n);
                 b=bar(b11,a1/length(seq2)*100);
                 bac(conta,:)=a1/length(seq2)*100;
                 x1=xlabel('BS','FontSize',10);

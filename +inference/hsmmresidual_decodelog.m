@@ -19,6 +19,7 @@
             [A2 A]  = self.trans_model.expect(opt.train);
             [in2 in] = self.in_model.expect(opt.train);
             [P2 P]  = self.dur_model.prob(opt.train,(1:1:dmax)');
+           
             T=size(B,1);
             B=B';
             P=P';
@@ -99,12 +100,12 @@
             if isnan(loglik)
                 'loglik indefinida'
             end
-            %decodevar.Emi=exp(B2); 
+            decodevar.Emi=B; 
             decodevar.scale=exp(c);
-            decodevar.gamma=exp(gamma);
-            decodevar.xi=exp(xi);
-            decodevar.loglik=loglik;
-            decodevar.durcount=exp(durcount);
+            decodevar.gamma=exp(real(gamma));
+            decodevar.xi=exp(real(xi));
+            decodevar.loglik=real(loglik);
+            decodevar.durcount=exp(real(durcount));
             decodevar.alpha=[];
             decodevar.beta=[];
             decodevar.eta=[];

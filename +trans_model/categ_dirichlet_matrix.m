@@ -3,17 +3,20 @@ classdef categ_dirichlet_matrix < handle
         prior = struct('categ_dirichlet',[]); %Sampling of Parameters
         posterior = struct('categ_dirichlet',[]); %Sampling of Parameters
         parsampl
-        eelog    %Expectation
-        divkl       %Divergence
-        ndim        
+        eelog    %Log Expectation
+        expectation   %Expectation
+        divkl    %Divergence
+        ndim       
     end
     
     methods
         function self = categ_dirichlet_matrix(ndim)
             if exist('ndim','var'), self.ndim=ndim; else self.ndim=[]; end
+            self.prior.categ_dirichlet.conc=[];
+            self.posterior.categ_dirichlet.conc=[];
             self.eelog=[];
             self.divkl=[];
-            if ~isempty(ndim),self.priornoinf();end
+            self.expectation=[];
         end
         function self=parsamplfun(self,option)
             if option==1
@@ -60,9 +63,18 @@ classdef categ_dirichlet_matrix < handle
             end
             p=self.eelog;
         end
+        function re=priorfull(self)
+            re=1;
+            if isempty(self.prior.categ_dirichlet.conc)
+               re=0; 
+            end
+        end
         function re=priornoinf(self)
             self.prior.categ_dirichlet.conc=ones(self.ndim);
         end
+        function expectfun(self)
+            self.expectation=self.posterior.categ_dirichlet.conc./repmat(sum(self.posterior.categ_dirichlet.conc,2),1,self.ndim);
+        end 
         function cleanpos(self)
             self.posterior.categ_dirichlet.conc=[];
             self.eelog=[];

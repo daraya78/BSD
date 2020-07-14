@@ -318,6 +318,9 @@ classdef mar < handle
             end
             self.divkl=D;
         end
+        function [flag]=trouble(self)
+            flag=0;
+        end
         function graf(self,optiongraf,data,elib,cycle,stateseq,alphak)
             if optiongraf==1
                 for j=1:self.nstates

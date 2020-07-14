@@ -26,13 +26,14 @@ function topographstruct(outhsmm,data3,chanlocs)
     
     
     
-%Y =zscore(data3.X);
-Y =data3.X;
+Y =zscore(data3.X);
+%Y =data3.X;
 
 %Y=data3.X-mean(data3.X);
+mask=unique(seq);
 X=zeros(length(seq),nstates);
 for k=1:nstates
-    X(seq==k,k) = 1;
+    X(seq==mask(k),k) = 1;
 end
 %X = zscore(X);
 
@@ -43,9 +44,11 @@ f.Position=[27         344        1245         232];
 ran=[min(min(B)) max(max(B))];
 ran=[0.8 2.65]
 %ran=[0.8 0.5];
+ran=[-0.5 2];
+%ran=[-1 4];
 
 for j=1:nstates
-    subplot(2,nstates/2,j)
+    subplot(2,ceil(nstates/2),j)
     %ran=[min(B(j,:)) max(B(j,:))];
     topoplot(B(j,:), chanlocs, 'electrodes','off','maplimits',ran);
     %topoplot(B(j,:), chanlocs, 'electrodes','off');

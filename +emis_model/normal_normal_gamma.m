@@ -57,7 +57,7 @@ classdef normal_normal_gamma < handle
                 end
             end
         end
-        function re = sample(self,num,state)
+        function re = sample(self,num,state,dataant)
             re = mvnrnd(self.parsampl.mean{state},inv(self.parsampl.prec{state}),num);
         end
         function [p,plog]=prob(self,opttrain,X,state)
@@ -223,6 +223,9 @@ classdef normal_normal_gamma < handle
                 self.expectation.prec{j}=diag(self.posterior.prec_gamma{j}.shape.*self.posterior.prec_gamma{j}.scale);
                 self.expectation.mean{j}=self.posterior.mean_normal{j}.mean;
             end
+        end
+        function [flag]=trouble(self)
+            flag=0;
         end
         function []=divklfun(self)
             D=0;

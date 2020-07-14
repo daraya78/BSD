@@ -17,7 +17,7 @@ function [stateseq] = initvb(self,X,opt,repi)
         %end
         stateseq=[];
         while(length(unique(stateseq))~=self.nstates)
-            stateseq=util.unirndseq(ndataefec,self.nstates,opt.dmax*5);
+            stateseq=util.unirndseq(ndataefec,self.nstates,opt.dmax);
         end
         %load sqaux;
         %stateseq=sqaux;
@@ -51,11 +51,12 @@ function [stateseq] = initvb(self,X,opt,repi)
             stateseq=seqs(b,:,self.nstates)';
         end
     elseif strcmp(opt.initoption,'seqprior_mar')
-        if size(opt.seqs,3)==1
-            stateseq=squeeze(opt.seqs(:,self.nstates))';
-        else
-            stateseq=squeeze(opt.seqs(repi,:,self.nstates));
-        end
+        %if size(opt.seqs,3)==1
+        %    stateseq=squeeze(opt.seqs(:,self.nstates))';
+        %else
+        %    stateseq=squeeze(opt.seqs(repi,:,self.nstates));
+        %end
+        stateseq=opt.seqs{self.nstates}(repi,:);
     end
      
     %%%%%%%%GENERATE GAMMA, XI AND ETA %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

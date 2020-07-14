@@ -74,7 +74,9 @@ classdef lognormal_normal_gamma < handle
                     eprec=self.posterior.prec_gamma{state}.shape*self.posterior.prec_gamma{state}.scale;
                     plog(:,conta)=-1/2*log(2*pi)-log(X)+1/2*elogdur-1/2*(eprec)*((log(X)-self.posterior.mean_normal{state}.mean).^2 ...
                     +1/self.posterior.mean_normal{state}.prec);
-                    plog(:,conta)=plog(:,conta)-util.logsumexp(plog(:,conta));
+                    if sum(abs(X-floor(X)))==0  %Discrete array need scaling
+                        plog(:,conta)=plog(:,conta)-util.logsumexp(plog(:,conta));
+                    end
                     p(:,conta)=exp(plog(:,conta));
                     conta=conta+1;
                 end

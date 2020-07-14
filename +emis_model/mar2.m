@@ -18,12 +18,6 @@ classdef mar2 < handle
             if exist('ndim','var'), self.ndim=ndim; else self.ndim=[]; end
             if exist('nstates','var'), self.nstates=nstates; else self.nstates=[]; end
             if exist('order','var'), self.order=order; else self.order=[]; end
-            self.prior.coef_mean_normal{1}.mean=[];
-            self.prior.coef_mean_normal{1}.prec=[];
-            self.prior.coef_prec_gamma{1}.scale=[];
-            self.prior.coef_prec_gamma{1}.shape=[];
-            self.prior.prec_wishart{1}.degree=[];
-            self.prior.prec_wishart{1}.scale=[];
             self.posterior.coef_mean_normal{1}.mean=[];
             self.posterior.coef_mean_normal{1}.prec=[];
             self.posterior.coef_prec_gamma{1}.scale=[];
@@ -61,17 +55,12 @@ classdef mar2 < handle
         end   
         function re = sample(self,num,state,dataant)
             ord=self.order;
-            ndim=self.ndim;
-            if exist('dataant','var') && ~isempty(dataant)
-                x = dataant(end-ord+1:end,:);
+            if exist('dataant','var')
+                x = dataant;
             else
                 x =rand(ord,self.ndim);
             end
             w = self.parsampl.coef{state};
-            %%%%%
-            w2=reshape(w,ndim*ord,ndim);
-            w=reshape(w2',1,ndim*ord*ndim);
-            %%%%%
             noise=mvnrnd(zeros(1,self.ndim),inv(self.parsampl.prec{state}),num);
             A=util.spm.spm_unvec(w,zeros(self.ndim,self.ndim*ord));
             AT      = A';
@@ -251,11 +240,15 @@ classdef mar2 < handle
         function n=ndatafun(self,X)
             n=size(X,1)-self.order;
         end
-        function priornoinf(self,type,X)
+        function priornoinf(self,X,varargin)
             if ~isempty(self.ndim)
+                opt.prior='default';   
+                for j=1:2:(nargin-2)
+                 opt=setfield(opt,varargin{j},varargin{j+1});
+                end
                 n=self.ndim;
                 d=self.order;
-                if strcmp(type,'default')
+                if strcmp(opt.prior,'default')
                     self.prior.coef_prec_gamma{1}.shape=1000*ones(1,n*n*d);
                     self.prior.coef_prec_gamma{1}.scale=0.001*ones(1,n*n*d);
                     self.prior.coef_prec_mask{1}.mask=ones(1,n*n*d);
@@ -263,9 +256,7 @@ classdef mar2 < handle
                     %self.prior.prec_wishart{1}.scale=0.001*eye(n);
                     self.prior.prec_wishart{1}.degree=self.ndim;
                     self.prior.prec_wishart{1}.scale=eye(n);
-
-                
-                elseif strcmp(type,'databased')
+                elseif strcmp(opt.prior,'databased')
                     %HOLD
                 end
             end
@@ -338,8 +329,11 @@ classdef mar2 < handle
                     Dgam=Dgam+util.Gamma.klgamma(coefscalek(j),1/coefshapek(j),coefscale0(j),1/coefshape0(j));
                 end
                 D=D+Dnor+Dgam+Dwis;
-                end
-                self.divkl=D;
+            end
+            self.divkl=D;
+        end
+        function [flag]=trouble(self)
+            flag=0;
         end
         function graf(self,optiongraf,data,elib,cycle,stateseq,alphak)
             if optiongraf==1
