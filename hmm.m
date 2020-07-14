@@ -23,7 +23,7 @@ classdef hmm < handle
                 self.in_model=i;
             end
             if isempty(trans_model2)
-                t=trans_model.categ_dirichlet_matrixdiag0(self.nstates);
+                t=trans_model.categ_dirichlet_matrix(self.nstates);
                 self.trans_model=t;
                 %if ~isempty(self.nstates),self.trans_model.priornoinf();end
             end
@@ -105,7 +105,6 @@ classdef hmm < handle
         end 
         function expectfun(self)
            self.emis_model.expectfun();
-           self.dur_model.expectfun();
            self.in_model.expectfun();
            self.trans_model.expectfun();
         end
