@@ -97,7 +97,7 @@ classdef mar3 < handle
             y=dataant;
             for j=1:num
                 dataaux=[y(end-p+1:end,:);ones(1,d)];
-                x=util.regressor(dataaux,p);
+                x=util.regressor_opt(dataaux,p);
                 y=[y;x*w+noise(j,:)];
             end
             y(1:p,:)=[];
@@ -115,29 +115,29 @@ classdef mar3 < handle
                 %Pendiente
             elseif strcmp(opttrain,'VB')  % Variational Bayes
                 conta=1;
-                [Xtot ytot]=util.regressor(y,self.order);
+                [Xtot ytot]=util.regressor_opt(y,self.order);
                 N=size(ytot,1);
                 d = self.ndim;
                 p = self.order;
                 mask=self.prior.coef_mask;
                 maskm=reshape(mask,d*p,d)';
                 for state=k1:k2
-                    prob=-d/2*log(2*pi);
+                    precob=self.posterior.prec_gamma{state}.shape.*self.posterior.prec_gamma{state}.scale;
+                    wcovre=zeros(d*p,d*p);
+                    W=zeros(d,d*p);
                     for j=1:d
-                        wmean=self.posterior.coef_normal{state}.mean{j};
-                        wprec=self.posterior.coef_normal{state}.prec{j};
-                        yshape=self.posterior.prec_gamma{state}.shape(j);
-                        yscale=self.posterior.prec_gamma{state}.scale(j);
-                        maskw=maskm(j,:);
-                        X=Xtot(:,find(maskw));
-                        c2=1/2*(psi(yshape)+log(yscale));
-                        aux1=-1/2*yshape*yscale;
-                        aux2=(ytot(:,j)-X*wmean).^2+sum(X*inv(wprec).*X,2);
-                        c3=aux1*aux2;
-                        prob=prob+c2+c3;
+                        W(j,logical(maskm(j,:)))=self.posterior.coef_normal{state}.mean{j}';
+                        wcov=zeros(d*p,d*p);
+                        wcov(logical(maskm(j,:)),logical(maskm(j,:)))=inv(self.posterior.coef_normal{state}.prec{j});
+                        wcovre=wcovre+wcov*precob(j);
                     end
-                    logbnj(:,conta)=prob;
-                    bnj(:,conta)=exp(prob);
+                    term1=-d/2*log(2*pi);
+                    term2=1/2*(sum(psi(self.posterior.prec_gamma{state}.shape))+sum(log(self.posterior.prec_gamma{state}.scale)));
+                    term3=-sum(1/2*repmat(precob',[1 N]).*(ytot'-W*Xtot').^2);
+                    term4=-1/2*sum((Xtot*wcovre').*Xtot,2)';
+                    probaux=term1+term2+term3+term4;
+                    logbnj(:,conta)=probaux;
+                    bnj(:,conta)=exp(probaux);
                     conta=conta+1;
                 end
             end
@@ -168,14 +168,39 @@ classdef mar3 < handle
                     d=self.ndim;
                     N=size(data,1);                % length of time series
                     Nef=sum(gamma);
-                    [Xtot ytot]=util.regressor(data,p);
+                    [Xtot ytot]=util.regressor_opt(data,p);
                     mask=self.prior.coef_mask;
                     maskm=reshape(mask,d*p,d)';
                     wshape0m=reshape(self.prior.coef_normal{nprior}.prec_gamma.shape,d*p,d)';
                     wscale0m=reshape(self.prior.coef_normal{nprior}.prec_gamma.scale,d*p,d)';
                     yshape0=self.prior.prec_gamma{nprior}.shape;
                     yscale0=self.prior.prec_gamma{nprior}.scale;
-                    for j=1:d
+                    if length(self.posterior.coef_normal)==self.nstates && (length(self.posterior.coef_normal{end}.mean)==d)
+                        w_ml=self.posterior.coef_normal{state}.mean;
+                        for j=1:d
+                            w_covml{j}=inv(self.posterior.coef_normal{state}.prec{j});
+                        end
+                    else
+                        % Initialition using ML (%Penny paper based)
+                         nsamp=min(d*p*100,N-p);
+                         maskall=logical(sum(maskm));
+                         X=Xtot(:,logical(maskall));
+                         inv_xtx=pinv(X'*X);
+                         w_mlarr=inv_xtx*X'*ytot;
+                         y_pred=X*w_mlarr;
+                         e=ytot-y_pred;
+                         etot=sum(e.^2)/Nef;
+                         for j=1:d
+                             w_ml{j}=w_mlarr(logical(maskm(j,maskall)'),j);
+                             X2=Xtot(:,logical(maskm(j,maskall)));
+                             %yprec_ml{j}=inv(ycov_ml{j});
+                             w_covml{j}=etot(j)*pinv(X2'*X2);  %Revisar kron para eliminar
+                         end
+                        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                    end
+                    for j=1:d     
+                        w_mean=w_ml{j};
+                        w_cov=w_covml{j};
                         y=ytot(:,j);
                         maskw=logical(maskm(j,:));
                         wshape0=wshape0m(j,maskw);
@@ -184,26 +209,6 @@ classdef mar3 < handle
                         nr=sum(maskw);   
                         X=X.*repmat(sqrt(gamma),1,nr);
                         y=y.*sqrt(gamma);
-                        if length(self.posterior.coef_normal)==self.nstates && (length(self.posterior.coef_normal{end}.mean)==d)
-                            w_mean=self.posterior.coef_normal{state}.mean{j};
-                            w_cov=inv(self.posterior.coef_normal{state}.prec{j});
-                        else
-                            % Initialition using ML (%Penny paper based)
-                            w_ml{j}=pinv(X)*y;
-                            %w_ml{j}=pinv(Xor).*repmat(gamma',nr,1)*y;
-                            %y_pred=Xor*w_ml{j};
-                            y_pred=X*w_ml{j};
-                            e=y-y_pred;
-                            %e=yor-y_pred;
-                            %ycov_ml{j}=(e'*(e.*gamma))/Nef;  %Revisar si no es Nefectivo
-                            
-                            ycov_ml{j}=(e'*e)/Nef;
-                            yprec_ml{j}=inv(ycov_ml{j});
-                            w_covml{j}=kron(ycov_ml{j},inv(X'*X)); %Revisar
-                            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                            w_mean=w_ml{j};
-                            w_cov=w_covml{j};
-                        end
                         for i=1:1
                             % Update weight precisions
                             E_wj=0.5*w_mean'*w_mean;
