@@ -1,5 +1,5 @@
 opt.train='VB';
-opt.maxcyc=100;%100;
+opt.maxcyc=30;%100;
 opt.tol=0.1;
 opt.dmax=200;
 %Kmeans
@@ -13,8 +13,8 @@ opt.maxstates=10;
 opt.seq='maxgamma';
 opt.verbose='yes';
 opt.prepro='nothing';
-opt.decalpha=1;
-opt.decbeta=1;
+opt.decalpha=0;
+opt.decbeta=0;
 opt.deceta=0;
 opt.parallel=0;
 opt.prior='databased';
