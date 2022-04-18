@@ -58,7 +58,7 @@ classdef mar3 < handle
                 x =rand(ord,self.ndim);
             end
             w = self.parsampl.coef{state};
-            noise=mvnrnd(zeros(1,self.ndim),inv(self.parsampl.prec{state}),num);
+            noise=mvnrnd(zeros(1,self.ndim),pinv(self.parsampl.prec{state}),num);
             A=util.spm.spm_unvec(w,zeros(self.ndim,self.ndim*ord));
             AT      = A';
             u      = [x; zeros(num,self.ndim)];
@@ -93,7 +93,7 @@ classdef mar3 < handle
                w0=self.parsampl.coef{state};
             end
             w = reshape(w0,d*p,d);
-            noise=mvnrnd(zeros(1,self.ndim),inv(self.parsampl.prec{state}),num);
+            noise=mvnrnd(zeros(1,self.ndim),pinv(self.parsampl.prec{state}),num);
             y=dataant;
             for j=1:num
                 dataaux=[y(end-p+1:end,:);ones(1,d)];
@@ -128,7 +128,7 @@ classdef mar3 < handle
                     for j=1:d
                         W(j,logical(maskm(j,:)))=self.posterior.coef_normal{state}.mean{j}';
                         wcov=zeros(d*p,d*p);
-                        wcov(logical(maskm(j,:)),logical(maskm(j,:)))=inv(self.posterior.coef_normal{state}.prec{j});
+                        wcov(logical(maskm(j,:)),logical(maskm(j,:)))=pinv(self.posterior.coef_normal{state}.prec{j});
                         wcovre=wcovre+wcov*precob(j);
                     end
                     term1=-d/2*log(2*pi);
@@ -153,6 +153,11 @@ classdef mar3 < handle
             if strcmp(opttrain,'EM') 
 
             elseif strcmp(opttrain,'VB') %Used for Variational Bayes
+                
+                p=self.order;
+                d=self.ndim;
+                N=size(data,1);                % length of time series
+                [Xtot ytot]=util.regressor_opt(data,p);
                 for state=k1:k2
                     if ~exist('statereq','var')
                         gamma=gammain(:,state);
@@ -164,11 +169,7 @@ classdef mar3 < handle
                     else
                         nprior=1;
                     end
-                    p=self.order;
-                    d=self.ndim;
-                    N=size(data,1);                % length of time series
                     Nef=sum(gamma);
-                    [Xtot ytot]=util.regressor_opt(data,p);
                     mask=self.prior.coef_mask;
                     maskm=reshape(mask,d*p,d)';
                     wshape0m=reshape(self.prior.coef_normal{nprior}.prec_gamma.shape,d*p,d)';
@@ -178,23 +179,21 @@ classdef mar3 < handle
                     if length(self.posterior.coef_normal)==self.nstates && (length(self.posterior.coef_normal{end}.mean)==d)
                         w_ml=self.posterior.coef_normal{state}.mean;
                         for j=1:d
-                            w_covml{j}=inv(self.posterior.coef_normal{state}.prec{j});
+                            w_covml{j}=pinv(self.posterior.coef_normal{state}.prec{j});
                         end
                     else
                         % Initialition using ML (%Penny paper based)
                          nsamp=min(d*p*100,N-p);
                          maskall=logical(sum(maskm));
-                         X=Xtot(:,logical(maskall));
-                         inv_xtx=pinv(X'*X);
-                         w_mlarr=inv_xtx*X'*ytot;
-                         y_pred=X*w_mlarr;
+                         inv_xtx=pinv(Xtot(:,logical(maskall))'*Xtot(:,logical(maskall)));
+                         w_mlarr=inv_xtx*Xtot(:,logical(maskall))'*ytot;
+                         y_pred=Xtot(:,logical(maskall))*w_mlarr;
                          e=ytot-y_pred;
                          etot=sum(e.^2)/Nef;
                          for j=1:d
                              w_ml{j}=w_mlarr(logical(maskm(j,maskall)'),j);
-                             X2=Xtot(:,logical(maskm(j,maskall)));
                              %yprec_ml{j}=inv(ycov_ml{j});
-                             w_covml{j}=etot(j)*pinv(X2'*X2);  %Revisar kron para eliminar
+                             w_covml{j}=etot(j)*pinv(Xtot(:,logical(maskm(j,maskall)))'*Xtot(:,logical(maskm(j,maskall))));  %Revisar kron para eliminar
                          end
                         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                     end
@@ -222,8 +221,11 @@ classdef mar3 < handle
                             noise=yshapek*yscalek;
                             cov2(j)=noise;
                             % Update weight posterior
-                            w_cov=inv(diag(mean_alpha)+noise*X'*X);                       %Eqs 3
-                            w_prec=inv(w_cov);                                            %Eqs 3
+                            %w_cov=inv(diag(mean_alpha)+noise*X'*X);                       %Eqs 3
+                            %Cambio provisorio
+                            w_cov=pinv(diag(mean_alpha)+noise*X'*X);                       %Eqs 3
+                            w_prec=pinv(w_cov);                                            %Eqs 3
+                            
                             w_mean=noise*w_cov*X'*y;
                         end
                         self.posterior.coef_normal{state}.mean{j}=w_mean;
@@ -327,7 +329,7 @@ classdef mar3 < handle
                      wprec0=diag(wshapek.*wscalek);
                      wmeank=self.posterior.coef_normal{state}.mean{j};
                      wpreck=self.posterior.coef_normal{state}.prec{j};
-                     Dwmean=Dwmean+util.Normal.spm_kl_normal(wmeank,inv(wpreck),wmean0,inv(wprec0));
+                     Dwmean=Dwmean+util.Normal.spm_kl_normal(wmeank,pinv(wpreck),wmean0,pinv(wprec0));
                      Dyprec=Dyprec+util.Gamma.klgamma(yshapek(j),1/yscalek(j),yshape0(j),1/yscale0(j));
                      for k=1:nr
                         Dwprec=Dwprec+util.Gamma.klgamma(wshapek(k),1/wscalek(k),wshape0(k),1/wscale0(k));                         
